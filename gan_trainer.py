@@ -2,7 +2,6 @@ import os, math, torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision.utils import save_image
-import csv
 import matplotlib.pyplot as plt
 
 
@@ -19,7 +18,7 @@ class GANTrainer:
         fake_label_soft=0.05,        # << soft fake          fake_label_soft=0.1, 
         flip_labels_p=0.02,         # << روشن                 flip_labels_p=0.05
         d_steps=1,
-        g_steps=3,                  # << قابل افزایش به 2*********one to two*******************
+        g_steps=2,                  # << قابل افزایش به 2*********one to two*******************
         save_every=1,
         ckpt_every=5,
         inst_noise_sigma=0.02,      # << instance noise شروع               inst_noise_sigma=0.05,
@@ -61,11 +60,11 @@ class GANTrainer:
         self.history = {"d": [], "g": [], "g_lr": [], "d_lr": []}
         self.log_path = os.path.join(self.out_dir, log_filename)
         os.makedirs(self.out_dir, exist_ok=True)
-
-
+        print(f"[Logger] Writing log to: {os.path.abspath(self.log_path)}")  # اضافه کن__________________________________________
     # هدر لاگ
         with open(self.log_path, "w") as f:
             f.write("epoch | d_loss | g_loss | g_lr | d_lr \n")
+            f.write("---------------------------------------------------------------\n")
 
 
     @torch.no_grad()
@@ -108,7 +107,7 @@ class GANTrainer:
     # ترمینال
         print(line)
     #________________________________________________________________
-    def train(self, loader, epochs=50):
+    def train(self, loader, epochs=100):
         for epoch in range(1, epochs + 1):
             self.G.train(); self.D.train() #_____________________________2nd chang: it wasnt
             d_loss_epoch, g_loss_epoch = 0.0, 0.0
@@ -164,16 +163,27 @@ class GANTrainer:
                   g_loss_sum += g_loss.item()   #______________________2nd: same as up
 
                 g_loss_epoch += g_loss_sum / self.g_steps       #__________2nd: g_loss_epoch += g_loss.item()
-
-            d_loss_epoch /= len(loader)
-            g_loss_epoch /= len(loader)
+                
             # log_line = f"[{epoch:03d}/{epochs}] D: {d_loss_epoch:.4f} | G: {g_loss_epoch:.4f}\n"
             # with open(self.log_path, "a") as f:
             #     f.write(log_line)
 
             #print(log_line.strip())  # همان خروجی روی صفحه
 
-            print(f"[{epoch:03d}/{epochs}] D: {d_loss_epoch:.4f} | G: {g_loss_epoch:.4f}")
+            #print(f"[{epoch:03d}/{epochs}] D: {d_loss_epoch:.4f} | G: {g_loss_epoch:.4f}")
+
+            
+
+            d_loss_epoch /= len(loader)
+            g_loss_epoch /= len(loader)
+            g_lr, d_lr = self._current_lrs()
+
+            
+# تاریخچه برای نمودارها
+            self.history["d"].append(d_loss_epoch)
+            self.history["g"].append(g_loss_epoch)
+            self.history["g_lr"].append(g_lr)
+            self.history["d_lr"].append(d_lr)
 
             self.inst_noise_sigma *= self.inst_noise_anneal
 
