@@ -3,6 +3,7 @@ from dataset_loader import DatasetLoader
 from generator import Generator, init_dcgan_weights as initG
 from discriminator import Discriminator, init_dcgan_weights as initD
 from gan_trainer import GANTrainer
+from eval_metrics import compute_is_fid
 
 def main():
     # 1) Data
@@ -30,10 +31,18 @@ def main():
         ckpt_every=5,
         inst_noise_sigma=0.02,   #0.05
         inst_noise_anneal=0.90,    #0.98
+        log_filename="training.log",
     )
 
     # 4) Train
     trainer.train(train_loader, epochs=10)  # برای تست سریع: 5-10 ایپاک
+   
+# یک DataLoader برای تست هم بگیر
+    test_loader = dl.get_test_loader(allow_download=True)
+    G.eval()
+    is_mean, is_std, fid = compute_is_fid(G, test_loader, z_dim=100, device=device)
+    print(f"Inception Score: {is_mean:.3f} ± {is_std:.3f} | FID: {fid:.2f}")
+
 
 if __name__ == "__main__":
     main()

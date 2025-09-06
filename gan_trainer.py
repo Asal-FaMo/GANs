@@ -2,14 +2,11 @@ import os, math, torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision.utils import save_image
+import csv
+import matplotlib.pyplot as plt
+
 
 class GANTrainer:
-    """
-    آموزش DCGAN برای MNIST با Loss های گفته‌شده در پروژه (BCE):
-      - Discriminator:  L_D = -1/2 [ log D(x) + log (1 - D(G(z))) ]
-      - Generator:      L_G = - log D(G(z))
-    به‌صورت عملی از BCEWithLogitsLoss استفاده می‌کنیم (خروجی D لاجیت است).
-    """
 
     def __init__(
         self,
@@ -27,6 +24,9 @@ class GANTrainer:
         ckpt_every=5,
         inst_noise_sigma=0.02,      # << instance noise شروع               inst_noise_sigma=0.05,
         inst_noise_anneal=0.90,     # << هر ایپاک ضربدر این                    inst_noise_anneal=0.98,
+        save_epochs=(1,25,50,100), 
+        log_filename="training.log",
+
     ):
         self.G, self.D = G, D
         self.z_dim = z_dim
@@ -52,6 +52,14 @@ class GANTrainer:
         self.save_every = save_every
         self.ckpt_every = ckpt_every
         self.label_smoothing = label_smoothing
+#_____________3rd
+        self.save_epochs = set(save_epochs)
+        self.history = {"d": [], "g": []}
+        self.log_path = os.path.join(self.out_dir, log_filename)
+        os.makedirs(self.out_dir, exist_ok=True)
+    # هدر لاگ
+        with open(self.log_path, "w") as f:
+            f.write("epoch | d_loss | g_loss\n")
 
 
     @torch.no_grad()
@@ -137,11 +145,17 @@ class GANTrainer:
 
             d_loss_epoch /= len(loader)
             g_loss_epoch /= len(loader)
+            log_line = f"[{epoch:03d}/{epochs}] D: {d_loss_epoch:.4f} | G: {g_loss_epoch:.4f}\n"
+            with open(self.log_path, "a") as f:
+                f.write(log_line)
+
+            print(log_line.strip())  # همان خروجی روی صفحه
+
             print(f"[{epoch:03d}/{epochs}] D: {d_loss_epoch:.4f} | G: {g_loss_epoch:.4f}")
 
             self.inst_noise_sigma *= self.inst_noise_anneal
 
-            if epoch % self.save_every == 0:
+            if epoch % self.save_every == 0 or epoch in self.save_epochs:
                 self._save_samples(epoch)
 
             if epoch % self.ckpt_every == 0:
@@ -152,3 +166,11 @@ class GANTrainer:
                     "g_opt": self.g_opt.state_dict(),
                     "d_opt": self.d_opt.state_dict(),
                 }, os.path.join(self.ckpt_dir, f"gan_{epoch:03d}.pt"))
+        # --- خارج از حلقهٔ for epoch ---
+        plt.figure()
+        plt.plot(self.history["d"], label="D loss")
+        plt.plot(self.history["g"], label="G loss")
+        plt.xlabel("Epoch"); plt.ylabel("Loss"); plt.legend()
+        plt.savefig(os.path.join(self.out_dir, "loss_curves.png"), bbox_inches="tight")
+        plt.close()
+
