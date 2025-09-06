@@ -19,7 +19,7 @@ class GANTrainer:
         fake_label_soft=0.05,        # << soft fake          fake_label_soft=0.1, 
         flip_labels_p=0.02,         # << روشن                 flip_labels_p=0.05
         d_steps=1,
-        g_steps=2,                  # << قابل افزایش به 2*********one to two*******************
+        g_steps=3,                  # << قابل افزایش به 2*********one to two*******************
         save_every=1,
         ckpt_every=5,
         inst_noise_sigma=0.02,      # << instance noise شروع               inst_noise_sigma=0.05,
@@ -53,13 +53,19 @@ class GANTrainer:
         self.ckpt_every = ckpt_every
         self.label_smoothing = label_smoothing
 #_____________3rd
+        # self.save_epochs = set(save_epochs)
+        # self.history = {"d": [], "g": []}
+        # self.log_path = os.path.join(self.out_dir, log_filename)
+        # os.makedirs(self.out_dir, exist_ok=True)
         self.save_epochs = set(save_epochs)
-        self.history = {"d": [], "g": []}
+        self.history = {"d": [], "g": [], "g_lr": [], "d_lr": []}
         self.log_path = os.path.join(self.out_dir, log_filename)
         os.makedirs(self.out_dir, exist_ok=True)
+
+
     # هدر لاگ
         with open(self.log_path, "w") as f:
-            f.write("epoch | d_loss | g_loss\n")
+            f.write("epoch | d_loss | g_loss | g_lr | d_lr \n")
 
 
     @torch.no_grad()
@@ -87,7 +93,21 @@ class GANTrainer:
         if sigma <= 0: return x
         noise = torch.randn_like(x) * sigma
         return (x + noise).clamp_(-1, 1)  # چون ورودی‌ها [-1,1] نرمال شده‌اند
+    #__________________________________________________________new one
+    def _current_lrs(self):
+        g_lr = self.g_opt.param_groups[0]["lr"]
+        d_lr = self.d_opt.param_groups[0]["lr"]
+        return g_lr, d_lr
 
+    def _log_epoch(self, epoch, epochs, d_loss_epoch, g_loss_epoch):
+        g_lr, d_lr = self._current_lrs()
+        line = f"[{epoch:03d}/{epochs}] D: {d_loss_epoch:.4f} | G: {g_loss_epoch:.4f} | g_lr={g_lr:.6f} | d_lr={d_lr:.6f} "
+        # فایل .log
+        with open(self.log_path, "a") as f:
+            f.write(line + "\n")
+    # ترمینال
+        print(line)
+    #________________________________________________________________
     def train(self, loader, epochs=50):
         for epoch in range(1, epochs + 1):
             self.G.train(); self.D.train() #_____________________________2nd chang: it wasnt
@@ -147,9 +167,9 @@ class GANTrainer:
 
             d_loss_epoch /= len(loader)
             g_loss_epoch /= len(loader)
-            log_line = f"[{epoch:03d}/{epochs}] D: {d_loss_epoch:.4f} | G: {g_loss_epoch:.4f}\n"
-            with open(self.log_path, "a") as f:
-                f.write(log_line)
+            # log_line = f"[{epoch:03d}/{epochs}] D: {d_loss_epoch:.4f} | G: {g_loss_epoch:.4f}\n"
+            # with open(self.log_path, "a") as f:
+            #     f.write(log_line)
 
             #print(log_line.strip())  # همان خروجی روی صفحه
 
@@ -157,8 +177,11 @@ class GANTrainer:
 
             self.inst_noise_sigma *= self.inst_noise_anneal
 
-            if epoch % self.save_every == 0 or epoch in self.save_epochs:
-                self._save_samples(epoch)
+            self._log_epoch(epoch, epochs, d_loss_epoch, g_loss_epoch)
+
+            if epoch % self.save_every == 0 or getattr(self, "save_epochs", set()):
+                if (epoch % self.save_every == 0) or (epoch in getattr(self, "save_epochs", set())):
+                    self._save_samples(epoch)
 
             if epoch % self.ckpt_every == 0:
                 torch.save({
@@ -174,5 +197,12 @@ class GANTrainer:
         plt.plot(self.history["g"], label="G loss")
         plt.xlabel("Epoch"); plt.ylabel("Loss"); plt.legend()
         plt.savefig(os.path.join(self.out_dir, "loss_curves.png"), bbox_inches="tight")
+        plt.close()
+
+        plt.figure()
+        plt.plot(self.history["g_lr"], label="G LR")
+        plt.plot(self.history["d_lr"], label="D LR")
+        plt.xlabel("Epoch"); plt.ylabel("LR"); plt.legend()
+        plt.savefig(os.path.join(self.out_dir, "lr_curves.png"), bbox_inches="tight")
         plt.close()
 

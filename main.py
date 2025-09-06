@@ -26,7 +26,7 @@ def main():
         fake_label_soft=0.05,  #0.1
         flip_labels_p=0.02,   #0.05
         d_steps=1,
-        g_steps=2,               # اگر لازم شد 2 کن*****yk bod krdm 2
+        g_steps=3,               # اگر لازم شد 2 کن*****yk bod krdm 3
         save_every=1,
         ckpt_every=5,
         inst_noise_sigma=0.02,   #0.05
