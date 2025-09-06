@@ -19,7 +19,7 @@ def main():
     trainer = GANTrainer(
         G, D,
         z_dim=100,
-        g_lr=2e-4, d_lr=5e-5, betas=(0.5, 0.999),    #g_lr=2e-4, d_lr=1e-4, betas=(0.5, 0.999),
+        g_lr=2e-4, d_lr=2.5e-5, betas=(0.5, 0.999),    #g_lr=2e-4, d_lr=1e-4, betas=(0.5, 0.999),  5e-5
         device=device,
         out_dir="./outputs",
         label_smoothing=0.9,
@@ -35,7 +35,7 @@ def main():
     )
 
     # 4) Train
-    trainer.train(train_loader, epochs=2)  # برای تست سریع: 5-10 ایپاک
+    trainer.train(train_loader, epochs=100)  # برای تست سریع: 5-10 ایپاک
    
 # یک DataLoader برای تست هم بگیر
     test_loader = dl.get_test_loader(allow_download=True)
