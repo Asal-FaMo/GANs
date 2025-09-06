@@ -35,12 +35,16 @@ def main():
     )
 
     # 4) Train
-    trainer.train(train_loader, epochs=10)  # برای تست سریع: 5-10 ایپاک
+    trainer.train(train_loader, epochs=50)  # برای تست سریع: 5-10 ایپاک
    
 # یک DataLoader برای تست هم بگیر
     test_loader = dl.get_test_loader(allow_download=True)
     G.eval()
-    is_mean, is_std, fid = compute_is_fid(G, test_loader, z_dim=100, device=device)
+    is_mean, is_std, fid = compute_is_fid(
+        G, test_loader, z_dim=100, device=device,
+        n_fake=5000,      # ← برای تست کافی است (می‌توانی 5000 هم بگذاری)
+        fake_bs=128       # ← اگر حافظه کم است، 64 بگذار
+)
     print(f"Inception Score: {is_mean:.3f} ± {is_std:.3f} | FID: {fid:.2f}")
 
 

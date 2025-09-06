@@ -98,6 +98,7 @@ class GANTrainer:
                 bsz = real.size(0)
 
                 # ---------- Train Discriminator ----------
+                d_loss_sum = 0.0
                 for _ in range(self.d_steps):
                     self.D.zero_grad(set_to_none=True)
 
@@ -129,6 +130,7 @@ class GANTrainer:
                 d_loss_epoch += d_loss_sum / self.d_steps   #______________________2nd chng: d_loss_epoch += d_loss.item()
 
                 # ---------- Train Generator ----------
+                g_loss_sum = 0.0
                 for _ in range(self.g_steps):
                   self.G.zero_grad(set_to_none=True)
                   z = torch.randn(bsz, self.z_dim, device=self.device)
@@ -141,7 +143,7 @@ class GANTrainer:
                   self.g_opt.step()
                   g_loss_sum += g_loss.item()   #______________________2nd: same as up
 
-                g_loss_epoch += g_loss_sum / self.g_step       #__________2nd: g_loss_epoch += g_loss.item()
+                g_loss_epoch += g_loss_sum / self.g_steps       #__________2nd: g_loss_epoch += g_loss.item()
 
             d_loss_epoch /= len(loader)
             g_loss_epoch /= len(loader)
@@ -149,7 +151,7 @@ class GANTrainer:
             with open(self.log_path, "a") as f:
                 f.write(log_line)
 
-            print(log_line.strip())  # همان خروجی روی صفحه
+            #print(log_line.strip())  # همان خروجی روی صفحه
 
             print(f"[{epoch:03d}/{epochs}] D: {d_loss_epoch:.4f} | G: {g_loss_epoch:.4f}")
 
