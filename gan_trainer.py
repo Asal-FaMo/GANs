@@ -36,6 +36,11 @@ class GANTrainer:
         self.g_opt = optim.Adam(self.G.parameters(), lr=g_lr, betas=betas)
         self.d_opt = optim.Adam(self.D.parameters(), lr=d_lr, betas=betas)
 
+        # --- LR schedulers: کاهش ملایم نرخ‌ها ---
+        self.g_sched = optim.lr_scheduler.ExponentialLR(self.g_opt, gamma=0.99)
+        self.d_sched = optim.lr_scheduler.ExponentialLR(self.d_opt, gamma=0.99)
+
+
         self.fixed_noise = torch.randn(64, z_dim, device=self.device)  # برای لاگ ثابت
         self.out_dir = out_dir
         self.img_dir = os.path.join(out_dir, "samples"); os.makedirs(self.img_dir, exist_ok=True)
@@ -51,6 +56,8 @@ class GANTrainer:
         self.save_every = save_every
         self.ckpt_every = ckpt_every
         self.label_smoothing = label_smoothing
+
+
 #_____________3rd
         # self.save_epochs = set(save_epochs)
         # self.history = {"d": [], "g": []}
@@ -188,6 +195,19 @@ class GANTrainer:
             self.inst_noise_sigma *= self.inst_noise_anneal
 
             self._log_epoch(epoch, epochs, d_loss_epoch, g_loss_epoch)
+
+            # پس از لاگ‌کردن LR فعلی، برای ایپاک بعدی کاهش بده
+            # داخل train() و درست بعد از self._log_epoch(...)
+            if (epoch >= 8) and (g_loss_epoch > 1.00) and (d_loss_epoch < 0.60):
+                self.g_sched.step()   # هر دو را کم کن
+                self.d_sched.step()
+
+# حالت شدیدتر
+            if (epoch >= 12) and (g_loss_epoch > 1.20) and (d_loss_epoch < 0.55):
+                self.g_sched.step()
+                self.d_sched.step()
+
+
 
             if epoch % self.save_every == 0 or getattr(self, "save_epochs", set()):
                 if (epoch % self.save_every == 0) or (epoch in getattr(self, "save_epochs", set())):
