@@ -15,14 +15,18 @@ class GANTrainer:
         self,
         G, D,
         z_dim=100,
-        lr=2e-4, betas=(0.5, 0.999),
+        g_lr=2e-4, d_lr=5e-5, betas=(0.5, 0.999),  # << TTUR      d_lr=1e-4
         device=None,
         out_dir="./outputs",
-        label_smoothing=0.9,   # real=0.9 (one-sided smoothing)
-        flip_labels_p=0.0,     # احتمال کوچک برعکس‌کردن برچسب‌ها (به‌طور پیش‌فرض خاموش)
-        d_steps=1,             # در صورت قوی‌بودن G می‌توان D را بیشتر آپدیت کرد و بلعکس
-        save_every=1,          # ذخیره‌ی تصاویر هر چند epoch
-        ckpt_every=5,          # ذخیره‌ی چک‌پوینت
+        label_smoothing=0.9,
+        fake_label_soft=0.05,        # << soft fake          fake_label_soft=0.1, 
+        flip_labels_p=0.02,         # << روشن                 flip_labels_p=0.05
+        d_steps=1,
+        g_steps=2,                  # << قابل افزایش به 2*********one to two*******************
+        save_every=1,
+        ckpt_every=5,
+        inst_noise_sigma=0.02,      # << instance noise شروع               inst_noise_sigma=0.05,
+        inst_noise_anneal=0.90,     # << هر ایپاک ضربدر این                    inst_noise_anneal=0.98,
     ):
         self.G, self.D = G, D
         self.z_dim = z_dim
@@ -30,8 +34,8 @@ class GANTrainer:
         self.G.to(self.device); self.D.to(self.device)
 
         self.criterion = nn.BCEWithLogitsLoss()
-        self.g_opt = optim.Adam(self.G.parameters(), lr=lr, betas=betas)
-        self.d_opt = optim.Adam(self.D.parameters(), lr=lr, betas=betas)
+        self.g_opt = optim.Adam(self.G.parameters(), lr=g_lr, betas=betas)
+        self.d_opt = optim.Adam(self.D.parameters(), lr=d_lr, betas=betas)
 
         self.fixed_noise = torch.randn(64, z_dim, device=self.device)  # برای لاگ ثابت
         self.out_dir = out_dir
@@ -39,29 +43,46 @@ class GANTrainer:
         self.ckpt_dir = os.path.join(out_dir, "checkpoints"); os.makedirs(self.ckpt_dir, exist_ok=True)
 
         # ترفندهای پایداری
-        self.label_smoothing = label_smoothing
+        self.fake_label_soft = fake_label_soft
         self.flip_labels_p = flip_labels_p
         self.d_steps = d_steps
+        self.g_steps = g_steps
+        self.inst_noise_sigma = inst_noise_sigma
+        self.inst_noise_anneal = inst_noise_anneal
         self.save_every = save_every
         self.ckpt_every = ckpt_every
+        self.label_smoothing = label_smoothing
+
 
     @torch.no_grad()
     def _save_samples(self, epoch):
         self.G.eval()
         fake = self.G(self.fixed_noise).detach().cpu()
-        # نرمال‌سازی به [-1,1] مطابق خروجی Tanh
-        save_image(fake, os.path.join(self.img_dir, f"epoch_{epoch:03d}.png"),
-                   nrow=8, normalize=True, range=(-1, 1))
+        # امن‌تر: مطمئن شو داخل بازه‌ی [-1,1] است
+        fake = fake.clamp_(-1, 1)
+        save_image(
+            fake,
+            os.path.join(self.img_dir, f"epoch_{epoch:03d}.png"),
+            nrow=8,
+            normalize=True,
+            value_range=(-1, 1)  # <<— به جای range
+        )
         self.G.train()
 
+
     def _maybe_flip(self, y):
-        """برعکس‌کردن تصادفی برچسب‌ها برای کمی نویز (اختیاری)."""
         if self.flip_labels_p <= 0: return y
         flip_mask = (torch.rand_like(y) < self.flip_labels_p).float()
         return (1.0 - y) * flip_mask + y * (1.0 - flip_mask)
 
+    def _add_instance_noise(self, x, sigma):
+        if sigma <= 0: return x
+        noise = torch.randn_like(x) * sigma
+        return (x + noise).clamp_(-1, 1)  # چون ورودی‌ها [-1,1] نرمال شده‌اند
+
     def train(self, loader, epochs=50):
         for epoch in range(1, epochs + 1):
+            self.G.train(); self.D.train() #_____________________________2nd chang: it wasnt
             d_loss_epoch, g_loss_epoch = 0.0, 0.0
 
             for real, _ in loader:
@@ -77,41 +98,48 @@ class GANTrainer:
                     y_real = self._maybe_flip(y_real)  # اختیاری
 
                     # fake labels
-                    y_fake = torch.zeros((bsz, 1), device=self.device)
+                    y_fake = torch.full((bsz,1), self.fake_label_soft, device=self.device)  # 0.1
 
                     # D(real)
-                    logits_real = self.D(real)
+                    real_noisy = self._add_instance_noise(real, self.inst_noise_sigma)
+                    logits_real = self.D(real_noisy)
                     loss_real = self.criterion(logits_real, y_real)
 
                     # D(fake) با G(z) جدا شده از گرادیان
                     z = torch.randn(bsz, self.z_dim, device=self.device)
                     fake = self.G(z).detach()
-                    logits_fake = self.D(fake)
+                    fake_noisy = self._add_instance_noise(fake, self.inst_noise_sigma)
+                    logits_fake = self.D(fake_noisy)
                     loss_fake = self.criterion(logits_fake, y_fake)
+
 
                     d_loss = 0.5 * (loss_real + loss_fake)  # مطابق فرمول سند (میانگین‌گیری با 1/2)
                     d_loss.backward()
                     self.d_opt.step()
+                    d_loss_sum += d_loss.item() #_____________________2nd chng: wasnt 
 
-                d_loss_epoch += d_loss.item()
+                d_loss_epoch += d_loss_sum / self.d_steps   #______________________2nd chng: d_loss_epoch += d_loss.item()
 
                 # ---------- Train Generator ----------
-                self.G.zero_grad(set_to_none=True)
-                z = torch.randn(bsz, self.z_dim, device=self.device)
-                fake = self.G(z)
-                logits_fake_for_g = self.D(fake)
+                for _ in range(self.g_steps):
+                  self.G.zero_grad(set_to_none=True)
+                  z = torch.randn(bsz, self.z_dim, device=self.device)
+                  fake = self.G(z)
+                  fake_noisy = self._add_instance_noise(fake, self.inst_noise_sigma)
+                  logits_fake_for_g = self.D(fake_noisy)
+                  y_true = torch.ones((bsz, 1), device=self.device)
+                  g_loss = self.criterion(logits_fake_for_g, y_true)
+                  g_loss.backward()
+                  self.g_opt.step()
+                  g_loss_sum += g_loss.item()   #______________________2nd: same as up
 
-                # هدف G: D(G(z))≈1  -->  y=1
-                y_true = torch.ones((bsz, 1), device=self.device)
-                g_loss = self.criterion(logits_fake_for_g, y_true)
-                g_loss.backward()
-                self.g_opt.step()
-
-                g_loss_epoch += g_loss.item()
+                g_loss_epoch += g_loss_sum / self.g_step       #__________2nd: g_loss_epoch += g_loss.item()
 
             d_loss_epoch /= len(loader)
             g_loss_epoch /= len(loader)
             print(f"[{epoch:03d}/{epochs}] D: {d_loss_epoch:.4f} | G: {g_loss_epoch:.4f}")
+
+            self.inst_noise_sigma *= self.inst_noise_anneal
 
             if epoch % self.save_every == 0:
                 self._save_samples(epoch)
