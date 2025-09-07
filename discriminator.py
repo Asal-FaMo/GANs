@@ -3,7 +3,7 @@ import torch.nn as nn
 
 class Discriminator(nn.Module):
     """
-    MNIST DCGAN Discriminator (مطابق سند پروژه)
+    MNIST DCGAN Discriminator 
 
     Conv1: (1 -> 64),  kernel=4, stride=2, padding=1   -> (14x14x64),  LeakyReLU(0.2), بدون BN
     Conv2: (64 -> 128), kernel=4, stride=2, padding=1   -> (7x7x128),  BN + LeakyReLU(0.2)
@@ -31,7 +31,7 @@ class Discriminator(nn.Module):
 
         self.classifier = nn.Sequential(
             nn.Flatten(),                                 # 256*3*3 = 2304
-            nn.Linear(256 * 3 * 3, 1024),
+            nn.Linear(256 * 3 * 3, 1024), #red dim 2304 > 1024
             nn.BatchNorm1d(1024),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(1024, 1),                           # logit

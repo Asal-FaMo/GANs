@@ -196,13 +196,11 @@ class GANTrainer:
 
             self._log_epoch(epoch, epochs, d_loss_epoch, g_loss_epoch)
 
-            # پس از لاگ‌کردن LR فعلی، برای ایپاک بعدی کاهش بده
-            # داخل train() و درست بعد از self._log_epoch(...)
+            
             if (epoch >= 8) and (g_loss_epoch > 1.00) and (d_loss_epoch < 0.60):
-                self.g_sched.step()   # هر دو را کم کن
+                self.g_sched.step()  
                 self.d_sched.step()
 
-# حالت شدیدتر
             if (epoch >= 12) and (g_loss_epoch > 1.20) and (d_loss_epoch < 0.55):
                 self.g_sched.step()
                 self.d_sched.step()

@@ -11,7 +11,7 @@ class View(nn.Module):
 
 class Generator(nn.Module):
     """
-    MNIST DCGAN Generator (مطابق سند پروژه)
+    MNIST DCGAN Generator 
 
     Layer 1:  Linear(z_dim -> 7*7*128) + BN1d + ReLU
     Layer 2:  ConvTranspose2d(128 -> 64,  k=4,s=2,p=1)  -> 14x14x64 + BN2d + ReLU
@@ -48,7 +48,7 @@ class Generator(nn.Module):
         return self.net(z)
 
 def init_dcgan_weights(m):
-    """DCGAN init: Normal(0,0.02) برای Conv/Deconv/Linear و (1,0.02) برای BN-weights."""
+    """DCGAN init: Normal(0,0.02) """
     classname = m.__class__.__name__
     if 'Conv' in classname:
         if hasattr(m, 'weight') and m.weight is not None:
@@ -67,7 +67,7 @@ def init_dcgan_weights(m):
             nn.init.constant_(m.bias, 0.0)
 
 if __name__ == "__main__":
-    # Self-test: خروجی باید [B,1,28,28] باشد و رنج ~[-1,1]
+    
     G = Generator(100)
     G.apply(init_dcgan_weights)
     z = torch.randn(4, 100)

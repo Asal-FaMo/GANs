@@ -20,6 +20,7 @@ def main():
         G, D,
         z_dim=100,
         g_lr=2e-4, d_lr=2.5e-5, betas=(0.5, 0.999),    #g_lr=2e-4, d_lr=1e-4, betas=(0.5, 0.999),  5e-5
+        #TTUR = Two Time-Scale Update Rule
         device=device,
         out_dir="./outputs",
         label_smoothing=0.9,
@@ -30,7 +31,7 @@ def main():
         save_every=1,
         ckpt_every=5,
         inst_noise_sigma=0.02,   #0.05
-        inst_noise_anneal=0.90,    #0.98
+        inst_noise_anneal=0.90,    #0.98 kmtr-zdtr0
         log_filename="training.log",
     )
 
